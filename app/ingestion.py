@@ -69,7 +69,7 @@ def _date(value) -> date:
 
 def _filename_date(filename: str) -> date | None:
     # NSE SME filenames use smeDDMMYYYY.csv; CM UDiFF filenames use YYYYMMDD.
-    match = re.search(r"(?<!\\d)(\\d{8})(?!\\d)", filename)
+    match = re.search(r"(?<!\d)(\d{8})(?!\d)", filename)
     if not match:
         return None
     token = match.group(1)
