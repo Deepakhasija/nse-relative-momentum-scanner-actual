@@ -1,10 +1,10 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Query
+from fastapi import FastAPI, HTTPException, UploadFile, File, Query, Header
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from sqlalchemy import text, select, func
 from datetime import date
-import csv, io, os
+import csv, io, os, secrets
 from .db import engine, SessionLocal
 from .models import Base, DailyPrice, Security, IngestionRun
 from .scanner import scan
@@ -46,10 +46,16 @@ def status():
 async def ingest_upload(
     file: UploadFile = File(...),
     segment: str = Query("MAINBOARD", pattern="^(MAINBOARD|SME)$"),
+    ingest_token: str | None = Header(default=None, alias="X-Ingest-Token"),
 ):
     """Upload one NSE daily CM-UDiFF or SME bhavcopy CSV/ZIP into Neon."""
     if SessionLocal is None:
         raise HTTPException(503, "DATABASE_URL is not configured")
+    expected_token = os.getenv("NSE_INGEST_TOKEN")
+    if not expected_token:
+        raise HTTPException(503, "NSE_INGEST_TOKEN is not configured on the server")
+    if not ingest_token or not secrets.compare_digest(ingest_token, expected_token):
+        raise HTTPException(401, "Invalid ingestion token")
     filename = file.filename or "nse-report.csv"
     if not filename.lower().endswith((".csv", ".zip")):
         raise HTTPException(400, "Upload a CSV or ZIP report")
