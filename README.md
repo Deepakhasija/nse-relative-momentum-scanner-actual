@@ -58,6 +58,29 @@ Open http://127.0.0.1:8000
 5. Render reads `render.yaml` and creates the web service.
 6. Open the generated `onrender.com` URL. Check `/api/health` to confirm the service is running.
 
+## NSE EOD report upload (first ingestion milestone)
+
+The feature branch includes a protected manual import endpoint:
+
+- `POST /api/ingest/upload?segment=MAINBOARD` for the CM-UDiFF ZIP/CSV.
+- `POST /api/ingest/upload?segment=SME` for the NSE SME CSV.
+- Send the report as multipart form field `file` and the secret as header `X-Ingest-Token`.
+- The importer expects one trading date per file, stores EQ-series rows, uses a PostgreSQL upsert keyed by trade date + symbol + series, and records a run in `ingestion_runs`.
+- Market cap is deliberately not populated from bhavcopy. The scanner continues to exclude securities without a validated market-cap input.
+- Upload limit: 25 MB. Rejected row details are returned (up to 20 examples).
+
+Before deploying this branch, add a strong random `NSE_INGEST_TOKEN` environment variable to the Render service. Do not commit the token to GitHub or put it in the browser. The existing production service on `main` is unchanged until this feature branch is deployed.
+
+Example request:
+
+```bash
+curl -X POST "https://YOUR-RENDER-URL/api/ingest/upload?segment=MAINBOARD" \
+  -H "X-Ingest-Token: $NSE_INGEST_TOKEN" \
+  -F "file=@BhavCopy_NSE_CM_0_0_0_YYYYMMDD_F_0000.csv.zip"
+```
+
+This is a manual ingestion test, not yet a historical backfill or automatic daily downloader. Verify the reported date and row counts against the NSE report before loading more dates.
+
 ## Next engineering phase: reliable NSE data pipeline
 
 Before enabling daily automatic rankings, implement and test:
