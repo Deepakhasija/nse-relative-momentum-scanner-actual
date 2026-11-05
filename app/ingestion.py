@@ -61,7 +61,7 @@ def _date(value) -> date:
     raw = str(value).strip()
     for fmt in ("%Y-%m-%d", "%d-%b-%Y", "%d-%m-%Y", "%d/%m/%Y", "%Y%m%d"):
         try:
-            return datetime.strptime(raw[:10], fmt).date()
+            return datetime.strptime(raw[:11], fmt).date()
         except ValueError:
             continue
     raise ValueError(f"Unsupported trade date: {raw}")
@@ -87,6 +87,7 @@ def _csv_rows(payload: bytes, filename: str):
 def parse_report(payload: bytes, filename: str, segment: str):
     rows = _csv_rows(payload, filename)
     parsed, rejected = [], []
+    seen = set()
     for line_no, row in enumerate(rows, start=2):
         try:
             symbol = str(_pick(row, ALIASES["symbol"], True)).strip().upper()
@@ -99,6 +100,10 @@ def parse_report(payload: bytes, filename: str, segment: str):
             volume = _number(_pick(row, ALIASES["volume"], True), True)
             if close <= 0 or volume < 0:
                 raise ValueError("Close must be positive and volume cannot be negative")
+            row_key = (trade_date, symbol, series)
+            if row_key in seen:
+                raise ValueError(f"Duplicate symbol/series/date: {symbol}/{series}/{trade_date}")
+            seen.add(row_key)
             parsed.append({
                 "trade_date": trade_date, "symbol": symbol, "series": series,
                 "isin": _pick(row, ALIASES["isin"]),
@@ -117,7 +122,10 @@ def parse_report(payload: bytes, filename: str, segment: str):
     dates = {item["trade_date"] for item in parsed}
     if len(dates) != 1:
         raise ValueError(f"Report must contain exactly one trade date; found {len(dates)}")
-    return parsed, rejected, next(iter(dates))
+    report_date = next(iter(dates))
+    if report_date > date.today():
+        raise ValueError("Report trade date is in the future")
+    return parsed, rejected, report_date
 
 
 def persist_report(records, filename: str, rejected):
