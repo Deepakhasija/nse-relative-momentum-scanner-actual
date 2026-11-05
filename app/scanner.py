@@ -6,7 +6,7 @@ from .models import DailyPrice, Security, BenchmarkPrice
 def scan(min_cap=500, min_price=10, min_turnover=7, percentile_cutoff=80):
     if SessionLocal is None: raise RuntimeError('DATABASE_URL is not configured')
     with SessionLocal() as s:
-        rows=s.execute(select(DailyPrice,Security).join(Security,DailyPrice.symbol==Security.symbol).order_by(DailyPrice.symbol,DailyPrice.trade_date)).all()
+        rows=s.execute(select(DailyPrice,Security).join(Security,DailyPrice.symbol==Security.symbol).where(DailyPrice.series=="EQ").order_by(DailyPrice.symbol,DailyPrice.trade_date)).all()
         by_symbol={}
         for p,sec in rows:
             by_symbol.setdefault(p.symbol,[]).append((p,sec))
@@ -21,7 +21,7 @@ def scan(min_cap=500, min_price=10, min_turnover=7, percentile_cutoff=80):
             if cap is None or latest.close<=min_price: continue
             last200=prices[-200:]; last20=prices[-20:]
             dma=sum(x.close for x in last200)/200
-            turnover=sum((x.turnover_rupees if x.turnover_rupees is not None else x.close*x.volume) for x in last20)/20/1e7
+            turnover=sum((x.close*x.volume) for x in last20)/20/1e7
             base=prices[-64]
             ret3=(latest.close/base.close-1)*100
             # Match benchmark close on stock's latest date and 63-session-earlier date.
