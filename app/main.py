@@ -60,6 +60,8 @@ async def ingest_upload(
     if not filename.lower().endswith((".csv", ".zip")):
         raise HTTPException(400, "Upload a CSV or ZIP report")
     payload = await file.read()
+    if len(payload) > 25 * 1024 * 1024:
+        raise HTTPException(413, "Upload exceeds the 25 MB limit")
     if not payload:
         raise HTTPException(400, "Uploaded file is empty")
     try:
