@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -8,6 +8,7 @@ import csv, io, os
 from .db import engine, SessionLocal
 from .models import Base, DailyPrice, Security, IngestionRun
 from .scanner import scan
+from .ingestion import parse_report, persist_report
 
 BASE_DIR=Path(__file__).resolve().parent
 app=FastAPI(title='NSE Relative Momentum Scanner',version='0.2.0')
@@ -40,6 +41,30 @@ def status():
     if SessionLocal is None: return {'database':'not_configured','price_rows':0,'symbols':0,'latest_date':None,'last_run':None}
     with SessionLocal() as s:
         return {'database':'connected','price_rows':s.query(func.count(DailyPrice.id)).scalar() or 0,'symbols':s.query(func.count(func.distinct(DailyPrice.symbol))).scalar() or 0,'latest_date':s.query(func.max(DailyPrice.trade_date)).scalar(),'last_run':s.query(IngestionRun).order_by(IngestionRun.id.desc()).first().status if s.query(IngestionRun).count() else None}
+
+@app.post('/api/ingest/upload')
+async def ingest_upload(
+    file: UploadFile = File(...),
+    segment: str = Query("MAINBOARD", pattern="^(MAINBOARD|SME)$"),
+):
+    """Upload one NSE daily CM-UDiFF or SME bhavcopy CSV/ZIP into Neon."""
+    if SessionLocal is None:
+        raise HTTPException(503, "DATABASE_URL is not configured")
+    filename = file.filename or "nse-report.csv"
+    if not filename.lower().endswith((".csv", ".zip")):
+        raise HTTPException(400, "Upload a CSV or ZIP report")
+    payload = await file.read()
+    if not payload:
+        raise HTTPException(400, "Uploaded file is empty")
+    try:
+        records, rejected, trade_date = parse_report(payload, filename, segment)
+        result = persist_report(records, filename, rejected)
+        result["segment"] = segment
+        return result
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+    except Exception as exc:
+        raise HTTPException(500, str(exc))
 
 @app.get('/api/scanner')
 def scanner(min_cap:float=500,min_price:float=10,min_turnover:float=7,percentile:float=80):
