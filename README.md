@@ -8,7 +8,7 @@ A GitHub-ready starter project for the NSE cross-sectional momentum dashboard.
 - Existing CSV upload, calculation and export workflow retained in the browser.
 - Render deployment configuration included.
 - Health endpoint: `/api/health`.
-- **Live NSE data ingestion is not enabled yet.** The app does not claim that its data is live.
+- Manual NSE EOD CSV/ZIP ingestion endpoint is available on the feature branch; automated historical backfill and scheduled refresh are not enabled.
 - Corporate-action adjustment, complete mainboard + SME coverage, and current market-cap reconciliation still need to be implemented and validated before relying on the output.
 
 ## Scanner rules currently implemented in the dashboard
@@ -23,6 +23,18 @@ A GitHub-ready starter project for the NSE cross-sectional momentum dashboard.
 - Top 20 percentile by cross-sectional return rank among eligible stocks.
 
 Percentile is calculated as `(N - rank + 1) / N × 100`, with stocks ranked by descending 3-month return.
+
+## Manual EOD ingestion (feature branch)
+
+The API accepts one single-date NSE CM-UDiFF Common Bhavcopy Final ZIP/CSV or SME Bhavcopy CSV per upload. It parses EQ rows, validates the trade date and price/volume fields, upserts daily prices into Neon, and records an ingestion run. It creates security master placeholders only; it does not fabricate market capitalisation.
+
+1. Set `NSE_INGEST_TOKEN` as a secret environment variable in Render (use a long random value).
+2. Deploy the feature branch to a staging Render service, not the production service.
+3. Open `/docs`, select `POST /api/ingest/upload`, choose segment `MAINBOARD` for CM-UDiFF or `SME` for the SME report, and attach the report file.
+4. Add the header `X-Ingest-Token` with the same secret.
+5. Verify `/api/status` and the response's trade date, stored rows and rejected rows.
+
+The ingestion route returns 503 until the server token is configured and rejects unauthorised requests. Never commit the token to GitHub or put it in frontend JavaScript. Current parser supports header aliases for common UDiFF and legacy SME fields; validate each new report variant before bulk loading. The database currently stores unadjusted bhavcopy closes, so split/bonus adjustments remain a separate required step before trusting long lookbacks.
 
 ## Run locally
 
