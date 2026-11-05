@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NSE Relative Momentum Scanner</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#172033;background:#f5f7fb}
+*{box-sizing:border-box}body{margin:0}.wrap{max-width:1250px;margin:auto;padding:28px 20px 50px}
+header{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:22px}
+h1{font-size:26px;margin:0 0 7px}.sub{color:#65718a;font-size:14px;line-height:1.5}
+.pill{background:#e8f1ff;color:#2459a6;padding:7px 11px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap}
+.panel,.metric{background:white;border:1px solid #e4e9f1;border-radius:14px;box-shadow:0 2px 8px #18294b08}
+.panel{padding:18px;margin-bottom:16px}.panel h2{font-size:15px;margin:0 0 12px}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+label{font-size:12px;color:#66718a;display:block;margin-bottom:6px}
+input,button{font:inherit}input[type=number],input[type=text]{width:100%;border:1px solid #dce3ed;border-radius:8px;padding:9px 10px;background:#fff;color:#172033}
+input[type=file]{max-width:100%;font-size:13px}
+.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:13px}
+button{border:0;border-radius:8px;padding:10px 14px;background:#245fc2;color:#fff;font-weight:650;cursor:pointer}
+button.secondary{background:#edf2f8;color:#34425a}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.metric{padding:15px}.metric .k{font-size:12px;color:#6a758a}.metric .v{font-size:24px;font-weight:750;margin-top:5px}
+.note{font-size:12px;color:#68758a;line-height:1.55}
+.status{margin-top:10px;font-size:13px;color:#41516b}
+.table-wrap{overflow:auto;border:1px solid #e5eaf2;border-radius:10px}
+table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:13px}
+th,td{padding:11px 12px;text-align:right;border-bottom:1px solid #edf0f5}
+th{background:#f7f9fc;color:#53617a;font-weight:650;position:sticky;top:0}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+tbody tr:hover{background:#f8fbff}.positive{color:#13804c;font-weight:700}.negative{color:#c13d3d}
+.toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.search{max-width:260px}.empty{padding:35px;text-align:center;color:#758198}
+details{margin-top:12px}summary{cursor:pointer;font-weight:650;font-size:13px}
+code{background:#f0f3f8;padding:2px 5px;border-radius:4px}
+@media(max-width:800px){.grid,.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}header{display:block}.pill{display:inline-block;margin-top:10px}}
+@media(max-width:480px){.grid,.metrics{grid-template-columns:1fr 1fr}.wrap{padding:20px 12px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+ <div><h1>NSE Relative Momentum Scanner</h1><div class="sub">Cross-sectional 3-month price momentum • eligibility filters • top-percentile ranking</div></div>
+ <div class="pill">WEB DASHBOARD · DATA SOURCE SETUP PENDING</div>
+</header>
+
+<section class="panel">
+ <h2>1. Load historical NSE data</h2>
+ <div class="sub">Upload a CSV containing daily rows for each NSE-listed stock. The dashboard calculates all indicators from the uploaded data in your browser.</div>
+ <div class="actions"><input id="file" type="file" accept=".csv,text/csv"><button id="sample" class="secondary">Load sample data</button><button id="downloadTemplate" class="secondary">Download CSV template</button></div>
+ <div id="status" class="status">Dashboard is online. Upload historical data to calculate rankings; live NSE ingestion is not connected yet.</div>
+ <details><summary>Required CSV format and calculation notes</summary>
+ <p class="note">Required columns (case-insensitive): <code>symbol,date,close,volume,market_cap_cr</code>. One row per stock per trading day. Dates should be YYYY-MM-DD. Provide at least 201 trading sessions per stock. The latest row is treated as the current session.</p>
+ <p class="note">3M return = latest close / close 63 trading sessions earlier − 1. 200 DMA = average of the latest 200 daily closes. Average turnover = mean(close × volume) over the latest 20 sessions, converted to ₹ crore. Market cap is supplied in ₹ crore and assumed current as of the data date.</p>
+ <p class="note">The top 20% is ranked among stocks that pass all eligibility filters. Percentile uses (N − rank + 1) / N × 100. This is a price-return ranking, not RS versus Nifty. Corporate-action-adjusted closes are strongly preferred.</p>
+ </details>
+</section>
+
+<section class="panel">
+ <h2>2. Eligibility and ranking settings</h2>
+ <div class="grid">
+  <div><label>Minimum market cap (₹ Cr)</label><input id="minCap" type="number" value="500" min="0"></div>
+  <div><label>Minimum price (₹)</label><input id="minPrice" type="number" value="10" min="0"></div>
+  <div><label>Minimum average turnover (₹ Cr)</label><input id="minTurnover" type="number" value="7" min="0"></div>
+  <div><label>Top percentile cutoff</label><input id="percentile" type="number" value="80" min="1" max="100"></div>
+ </div>
+ <div class="actions"><button id="run">Run scanner</button><button id="export" class="secondary" disabled>Export qualifying stocks CSV</button></div>
+ <div class="note" style="margin-top:10px">200 DMA condition is fixed: latest close must be above the 200-day simple moving average. Turnover uses 20-session average of close × volume.</div>
+</section>
+
+<div class="metrics">
+ <div class="metric"><div class="k">Stocks loaded</div><div class="v" id="mLoaded">—</div></div>
+ <div class="metric"><div class="k">Passed all filters</div><div class="v" id="mEligible">—</div></div>
+ <div class="metric"><div class="k">Top-percentile stocks</div><div class="v" id="mSelected">—</div></div>
+ <div class="metric"><div class="k">Best 3M return</div><div class="v" id="mBest">—</div></div>
+</div>
+
+<section class="panel">
+ <h2>3. Results</h2>
+ <div class="toolbar"><div class="note" id="resultNote">Load data and run the scanner to see ranked stocks.</div><input id="search" class="search" type="text" placeholder="Search symbol…" disabled></div>
+ <div class="table-wrap"><table><thead><tr>
+ <th>Rank</th><th>Symbol</th><th>Price (₹)</th><th>Market cap (₹ Cr)</th><th>3M return</th><th>Percentile</th><th>200 DMA (₹)</th><th>Avg turnover (₹ Cr)</th>
+ </tr></thead><tbody id="tbody"><tr><td colspan="8" class="empty">No results yet</td></tr></tbody></table></div>
+</section>
+<div class="note">Data quality matters: this dashboard does not fetch NSE data itself, validate listing status, or independently adjust corporate actions. SME securities may have sparse trading, suspensions, or symbol changes. Use a consistent, licensed source for historical prices, volume and market capitalisation before relying on the ranking.</div>
+</div>
+<script>
+let allRows=[], results=[];
+const $=id=>document.getElementById(id);
+function parseCSV(text){
+ const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.trim());
+ if(!lines.length) throw Error('CSV is empty');
+ const parseLine=line=>{let out=[],v='',q=false;for(let i=0;i<line.length;i++){let c=line[i];if(c==='"'&&line[i+1]==='"'&&q){v+='"';i++}else if(c==='"')q=!q;else if(c===','&&!q){out.push(v);v=''}else v+=c}out.push(v);return out};
+ const headers=parseLine(lines[0]).map(x=>x.trim().toLowerCase());
+ const idx=name=>headers.indexOf(name);
+ for(const h of ['symbol','date','close','volume','market_cap_cr']) if(idx(h)<0) throw Error('Missing required column: '+h);
+ return lines.slice(1).map(parseLine).map(a=>({symbol:(a[idx('symbol')]||'').trim().toUpperCase(),date:(a[idx('date')]||'').trim(),close:Number(a[idx('close')]),volume:Number(a[idx('volume')]),cap:Number(a[idx('market_cap_cr')])})).filter(r=>r.symbol&&r.date&&Number.isFinite(r.close)&&r.close>0&&Number.isFinite(r.volume)&&r.volume>=0);
+}
+function csvEscape(v){let s=String(v??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}
+function download(name,content){let b=new Blob([content],{type:'text/csv;charset=utf-8;'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;a.click();URL.revokeObjectURL(u)}
+function compute(){
+ const groups=new Map();for(const r of allRows){if(!groups.has(r.symbol))groups.set(r.symbol,[]);groups.get(r.symbol).push(r)}
+ let calculated=[];
+ for(const [symbol,rows] of groups){
+  rows.sort((a,b)=>a.date.localeCompare(b.date));
+  // Collapse duplicate symbol/date records to the last row.
+  const daily=[];for(const r of rows){if(daily.length&&daily[daily.length-1].date===r.date)daily[daily.length-1]=r;else daily.push(r)}
+  if(daily.length<200)continue;
+  const last=daily[daily.length-1],base=daily.length>=64?daily[daily.length-64]:null;
+  if(!base)continue;
+  const last200=daily.slice(-200),last20=daily.slice(-20);
+  const dma=last200.reduce((s,r)=>s+r.close,0)/200;
+  const turnover=last20.reduce((s,r)=>s+r.close*r.volume,0)/20/1e7;
+  const ret=(last.close/base.close-1)*100;
+  calculated.push({symbol,price:last.close,cap:last.cap,ret,dma,turnover,date:last.date});
+ }
+ const minCap=Number($('minCap').value)||0,minPrice=Number($('minPrice').value)||0,minTurn=Number($('minTurnover').value)||0,cut=Number($('percentile').value)||80;
+ const eligible=calculated.filter(x=>x.cap>minCap&&x.price>minPrice&&x.price>x.dma&&x.turnover>minTurn).sort((a,b)=>b.ret-a.ret);
+ const n=eligible.length;
+ results=eligible.map((x,i)=>({...x,rank:i+1,percentile:(n-i)/n*100})).filter(x=>x.percentile>=cut);
+ $('mLoaded').textContent=groups.size.toLocaleString();
+ $('mEligible').textContent=n.toLocaleString();
+ $('mSelected').textContent=results.length.toLocaleString();
+ $('mBest').textContent=eligible.length?eligible[0].ret.toFixed(2)+'%':'—';
+ $('resultNote').textContent=`${results.length} stocks in the top ${100-cut}% percentile band from ${n} eligible stocks. Latest data date: ${eligible[0]?.date||'—'}.`;
+ render();$('export').disabled=!results.length;$('search').disabled=!results.length;
+}
+function render(){
+ const term=$('search').value.trim().toUpperCase();
+ const view=results.filter(x=>x.symbol.includes(term));
+ $('tbody').innerHTML=view.length?view.map(x=>`<tr><td>${x.rank}</td><td><b>${x.symbol}</b></td><td>${x.price.toFixed(2)}</td><td>${x.cap.toLocaleString('en-IN',{maximumFractionDigits:0})}</td><td class="positive">${x.ret.toFixed(2)}%</td><td>${x.percentile.toFixed(1)}</td><td>${x.dma.toFixed(2)}</td><td>${x.turnover.toFixed(2)}</td></tr>`).join(''):'<tr><td colspan="8" class="empty">No matching stocks</td></tr>';
+}
+$('file').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;try{allRows=parseCSV(await f.text());$('status').textContent=`Loaded ${allRows.length.toLocaleString()} daily records from ${f.name}.`;results=[];$('run').click()}catch(err){$('status').textContent='Could not load file: '+err.message}});
+$('run').addEventListener('click',()=>{if(!allRows.length){$('status').textContent='Please upload a CSV first.';return}compute()});
+$('search').addEventListener('input',render);
+$('export').addEventListener('click',()=>{const keys=['symbol','date','price','cap','ret','percentile','dma','turnover','rank'];const lines=[keys.join(','),...results.map(x=>keys.map(k=>csvEscape(x[k])).join(','))];download('nse_relative_momentum_top20.csv',lines.join('\n'))});
+$('downloadTemplate').addEventListener('click',()=>{let rows=['symbol,date,close,volume,market_cap_cr','EXAMPLE,2026-01-01,100,100000,750'];download('nse_momentum_data_template.csv',rows.join('\n'))});
+$('sample').addEventListener('click',()=>{allRows=[];const names=[['ALPHA',1200,38],['BETA',800,28],['GAMMA',1800,17],['DELTA',600,9],['EPSILON',900,5],['ZETA',1300,-2],['ETA',700,12],['THETA',1600,24],['IOTA',550,8],['KAPPA',2000,32]];const start=new Date('2025-01-01');for(let [sym,cap,ret] of names){let base=100;for(let i=0;i<220;i++){let d=new Date(start);d.setDate(d.getDate()+i);if(d.getDay()===0||d.getDay()===6)continue;let progress=i/219;let close=base*(1+(ret/100)*progress)*(1+Math.sin(i/8+sym.length)*.012);let vol=300000+(sym.length*17000);allRows.push({symbol:sym,date:d.toISOString().slice(0,10),close,volume:vol,cap})}}$('status').textContent='Loaded illustrative sample dataset (not real market data).';compute()});
+</script>
+</body>
+</html>
