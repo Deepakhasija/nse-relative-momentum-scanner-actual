@@ -22,7 +22,7 @@ ALIASES = {
     "symbol": ("TckrSymb", "SYMBOL", "Symbol", "Security", "SctySymb"),
     "series": ("SctySrs", "SERIES", "Series"),
     "isin": ("ISIN", "Isin", "ISINCode"),
-    "date": ("TradDt", "TIMESTAMP", "TRADE_DATE", "TradeDate", "BizDt"),
+    "date": ("TradDt", "TIMESTAMP", "TRADE_DATE", "TradeDate", "BizDt", "DATE"),
     "open": ("OpnPric", "OPEN", "Open"),
     "high": ("HghPric", "HIGH", "High"),
     "low": ("LwPric", "LOW", "Low"),
