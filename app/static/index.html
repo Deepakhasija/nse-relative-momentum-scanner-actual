@@ -41,14 +41,14 @@ code{background:#f0f3f8;padding:2px 5px;border-radius:4px}
 <div class="wrap">
 <header>
  <div><h1>NSE Relative Momentum Scanner</h1><div class="sub">Cross-sectional 3-month price momentum • eligibility filters • top-percentile ranking</div></div>
- <div class="pill">WEB DASHBOARD · DATA SOURCE SETUP PENDING</div>
+ <div class="pill" id="dataPill">NSE EOD · DATABASE SETUP</div>
 </header>
 
 <section class="panel">
  <h2>1. Load historical NSE data</h2>
  <div class="sub">Upload a CSV containing daily rows for each NSE-listed stock. The dashboard calculates all indicators from the uploaded data in your browser.</div>
- <div class="actions"><input id="file" type="file" accept=".csv,text/csv"><button id="sample" class="secondary">Load sample data</button><button id="downloadTemplate" class="secondary">Download CSV template</button></div>
- <div id="status" class="status">Dashboard is online. Upload historical data to calculate rankings; live NSE ingestion is not connected yet.</div>
+ <div class="actions"><input id="file" type="file" accept=".csv,text/csv"><button id="loadLive">Load database data</button><button id="sample" class="secondary">Load sample data</button><button id="downloadTemplate" class="secondary">Download CSV template</button></div>
+ <div id="status" class="status">Dashboard is online. Connect the Neon database and run NSE ingestion to load exchange EOD data.</div>
  <details><summary>Required CSV format and calculation notes</summary>
  <p class="note">Required columns (case-insensitive): <code>symbol,date,close,volume,market_cap_cr</code>. One row per stock per trading day. Dates should be YYYY-MM-DD. Provide at least 201 trading sessions per stock. The latest row is treated as the current session.</p>
  <p class="note">3M return = latest close / close 63 trading sessions earlier − 1. 200 DMA = average of the latest 200 daily closes. Average turnover = mean(close × volume) over the latest 20 sessions, converted to ₹ crore. Market cap is supplied in ₹ crore and assumed current as of the data date.</p>
@@ -130,6 +130,7 @@ function render(){
  const view=results.filter(x=>x.symbol.includes(term));
  $('tbody').innerHTML=view.length?view.map(x=>`<tr><td>${x.rank}</td><td><b>${x.symbol}</b></td><td>${x.price.toFixed(2)}</td><td>${x.cap.toLocaleString('en-IN',{maximumFractionDigits:0})}</td><td class="positive">${x.ret.toFixed(2)}%</td><td>${x.percentile.toFixed(1)}</td><td>${x.dma.toFixed(2)}</td><td>${x.turnover.toFixed(2)}</td></tr>`).join(''):'<tr><td colspan="8" class="empty">No matching stocks</td></tr>';
 }
+$('loadLive').addEventListener('click',async()=>{try{$('status').textContent='Loading historical rows from Neon…';const r=await fetch('/api/history.csv');if(!r.ok)throw Error((await r.text())||'Database history unavailable');allRows=parseCSV(await r.text());if(!allRows.length)throw Error('No historical rows found. Run the ingestion/backfill job first.');$('status').textContent=`Loaded ${allRows.length.toLocaleString()} NSE EOD records from Neon.`;$('dataPill').textContent='NSE EOD · DATABASE CONNECTED';$('run').click()}catch(e){$('status').textContent='Could not load database data: '+e.message}});
 $('file').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;try{allRows=parseCSV(await f.text());$('status').textContent=`Loaded ${allRows.length.toLocaleString()} daily records from ${f.name}.`;results=[];$('run').click()}catch(err){$('status').textContent='Could not load file: '+err.message}});
 $('run').addEventListener('click',()=>{if(!allRows.length){$('status').textContent='Please upload a CSV first.';return}compute()});
 $('search').addEventListener('input',render);
